@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Interactive Mesh Visualizer</title>
+    <style>
+        #blur-overlay {
+          position: fixed;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          background: rgba(255, 255, 255, 0.8);
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          font-size: 2em;
+          color: #000;
+          z-index: 1000;
+          visibility: hidden;
+        }
+    </style>
+    <style>
+        body { margin: 0; }
+        canvas { display: block; }
+    </style>
+      <style>
+        #drop-area {
+          border: 2px dashed #ccc;
+          border-radius: 20px;
+          width: 80%;
+          height: 100px;
+          margin: 50px auto;
+          padding: 20px;
+          text-align: center;
+          font-family: Arial, sans-serif;
+          font-size: 16px;
+          color: #333;
+          background-color: #f9f9f9;
+        }
+        #drop-area p {
+          margin: 0;
+          font-size: 18px;
+        }
+        #fileSelect {
+          margin-top: 20px;
+          padding: 10px 20px;
+          font-size: 16px;
+          cursor: pointer;
+        }
+        #computeButton {
+          display: block;
+          margin: 20px auto;
+          padding: 10px 20px;
+          font-size: 16px;
+          cursor: pointer;
+        }
+      </style>
+      <style>
+        #icon-container {
+          position: fixed;
+          top: 10px;
+          right: 10px;
+          display: flex;
+          gap: 10px;
+          z-index: 1001;
+        }
+      
+        #icon-container button {
+          background: none;
+          border: none;
+          font-size: 2em;
+          cursor: pointer;
+        }
+      
+        #icon-container button:hover {
+          color: #007BFF;
+        }
+      </style>
+</head>
+<body>
+    <div id="drop-area">
+        <p>Drag and drop a mesh file here, or click to select a file.</p>
+        <input type="file" id="fileElem" accept=".obj,.ply,.off,.stl,.gltf" style="display:none" />
+        <button id="fileSelect">Select a file</button>
+    </div>
+    <div id="icon-container">
+        <button id="clear-origins" title="Clear Origins">&#x274C;</button> 
+        <button id="upload-mesh" title="Upload Mesh">&#x1F4E5;</button>
+    </div>
+    <div id="blur-overlay">Pre-processing mesh...</div>
+    <script src="index.js" type="module"></script>
+    <!-- <button id="computeButton" disabled>Compute</button> -->
+
+    <script src="https://cdn.jsdelivr.net/pyodide/v0.24.1/full/pyodide.js"></script>
+    <script src="https://cdn.jsdelivr.net/pyodide/v0.24.1/full/pyodide.js"></script>
+</body>
+</html>
