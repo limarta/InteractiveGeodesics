@@ -8,7 +8,7 @@ let pyodideLoaded = false;
 let PYODIDE;
 
 loadPyodide().then(async (pyodide) => {
-    await pyodide.loadPackage(["scipy", "numpy"]); // Load scipy and numpy
+    await pyodide.loadPackage(["scipy", "numpy"]); 
     numpy = pyodide.pyimport("numpy");
     pyodide.runPython(await (await fetch("./cotangent.py")).text())
     pyodideLoaded = true;
@@ -21,6 +21,7 @@ loadPyodide().then(async (pyodide) => {
 });
 
 let MESH;
+let CENTER;
 let ORIGINS;
 let VN;
 let V;
@@ -29,16 +30,17 @@ let L;
 let A;
 let DIV;
 let GRAD;
+let ISOLINES;
 
 document.getElementById('fileSelect').addEventListener('click', () => {
     document.getElementById('fileElem').click();
 });
-  
+
 document.getElementById('fileElem').addEventListener('change', handleFiles);
 document.getElementById('drop-area').addEventListener('dragover', (event) => {
     event.preventDefault();
 });
-  
+
 document.getElementById('drop-area').addEventListener('drop', (event) => {
     event.preventDefault();
 });
@@ -55,23 +57,28 @@ document.getElementById('clear-origins').addEventListener('click', () => {
         }
         MESH.geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
     }
+    if (ISOLINES) {
+        scene.remove(ISOLINES);
+        ISOLINES.geometry.dispose();
+        ISOLINES.material.dispose();
+        ISOLINES = null;
+    }
 });
 
 document.getElementById('upload-mesh').addEventListener('click', () => {
+    console.log("Reupload...")
     document.getElementById('fileElem').click();
 });
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0xFFFFFF)
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-// const camera = new THREE.OrthographicCamera(window.innerWidth / -2, window.innerWidth / 2,  window.innerHeight / -2, window.innerHeight / 2, 0.1, 1000);
 const renderer = new THREE.WebGLRenderer();
 renderer.setSize(window.innerWidth, window.innerHeight);
 document.body.appendChild(renderer.domElement);
 
 camera.position.z = 1;
 
-// Orbit Controls for rotation
 const controls = new OrbitControls(camera, renderer.domElement);
 // controls.enableDamping = true;
 // controls.dampingFactor = 0.05;
@@ -116,6 +123,13 @@ function processFile(file) {
             MESH.material.dispose();
             MESH = null;
         }
+        if (ISOLINES) {
+            scene.remove(ISOLINES);
+            ISOLINES.geometry.dispose();
+            ISOLINES.material.dispose();
+            ISOLINES = null;
+        }
+
 
         let meshInfo;
         if (fileName.endsWith('.obj')) {
@@ -137,9 +151,9 @@ function processFile(file) {
         VN = meshInfo.vertices.length;
         F = numpy.array(meshInfo.faces);
         L = PYODIDE.globals.get("cotangent_laplacian")(V, F);
-        A = PYODIDE.globals.get("vertex_area")(V,F);
+        A = PYODIDE.globals.get("vertex_area")(V, F);
         DIV = PYODIDE.globals.get("div")(V, F)
-        GRAD = PYODIDE.globals.get("face_grad")(V,F)
+        GRAD = PYODIDE.globals.get("face_grad")(V, F)
         ORIGINS = null
         console.log("Precompute finished")
         document.getElementById('blur-overlay').style.visibility = 'hidden';
@@ -152,7 +166,7 @@ function constructMesh(meshInfo) {
     const geometry = new THREE.BufferGeometry();
     let floatVertices = new Float32Array(meshInfo.vertices.flat());
     let largest = 0.0;
-    for(let i = 0 ; i < floatVertices.length ; i++) {
+    for (let i = 0; i < floatVertices.length; i++) {
         largest = Math.max(largest, Math.abs(floatVertices[i]));
     }
     floatVertices = floatVertices.map(v => v / largest);
@@ -162,11 +176,11 @@ function constructMesh(meshInfo) {
     geometry.setIndex(new THREE.BufferAttribute(indexArray, 1));
     geometry.computeVertexNormals();
     const colors = new Float32Array(floatVertices.length);
-    for(let i = 0 ; i < floatVertices.length ; i++) {
+    for (let i = 0; i < floatVertices.length; i++) {
         let color = new THREE.Color(0xFFFF00);
-        colors[3*i] = color.r;
-        colors[3*i+1] = color.g;
-        colors[3*i+2] = color.b;
+        colors[3 * i] = color.r;
+        colors[3 * i + 1] = color.g;
+        colors[3 * i + 2] = color.b;
     }
     geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
     const material = new THREE.MeshPhongMaterial({ vertexColors: true });
@@ -181,8 +195,8 @@ function constructMesh(meshInfo) {
 
 function centerMesh() {
     const box = new THREE.Box3().setFromObject(MESH);
-    const center = box.getCenter(new THREE.Vector3());
-    MESH.position.sub(center);
+    CENTER = box.getCenter(new THREE.Vector3());
+    MESH.position.sub(CENTER);
 }
 
 // Vertex Picking
@@ -194,28 +208,6 @@ let startY;
 let isDragging;
 const dragThreshold = 0.1;
 
-function displayRay() {
-
-    const origin = raycaster.ray.origin;
-    const direction = raycaster.ray.direction;
-
-    // Calculate a point far along the ray.
-    const farPoint = new THREE.Vector3();
-    farPoint.copy(origin).add(direction.clone().multiplyScalar(1000)); // Adjust the multiplier as needed
-
-    // Create a line geometry and material.
-    const geometry = new THREE.BufferGeometry().setFromPoints([origin, farPoint]);
-    const material = new THREE.LineBasicMaterial({ color: 0xff0000 }); // Red line
-
-    // Create the line and add it to the scene.
-    const line = new THREE.Line(geometry, material);
-    scene.add(line);
-
-    // Return the line so you can remove it later if needed.
-    return line;
-}
-
-
 function onMouseUp(event) {
     if (!isDragging) {
         if (MESH) {
@@ -223,7 +215,6 @@ function onMouseUp(event) {
             mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
 
             raycaster.setFromCamera(mouse, camera);
-            // displayRay();
             const intersects = raycaster.intersectObject(MESH);
 
             if (intersects.length > 0) {
@@ -237,7 +228,7 @@ function onMouseUp(event) {
                 }
                 ORIGINS.push(vertexIndex)
                 ORIGINS = [...new Set(ORIGINS)];
-                
+
                 let origins = numpy.array(ORIGINS)
                 let distance = PYODIDE.globals.get("heat_method")(origins, V, F, L, A, GRAD, DIV);
 
@@ -245,20 +236,21 @@ function onMouseUp(event) {
 
                 let geometry = MESH.geometry;
                 let maximumDistance = 0.0
-                for(let i = 0 ; i < distance.length ; i++) {
+                for (let i = 0; i < distance.length; i++) {
                     maximumDistance = Math.max(maximumDistance, distance[i]);
                 }
 
-                const colors = new Float32Array(VN*3);
-                for(let i = 0 ; i < distance.length ; i++) {
+                const colors = new Float32Array(VN * 3);
+                for (let i = 0; i < distance.length; i++) {
                     if (!isNaN(distance[i] / maximumDistance)) {
                         let color = interpolate_heat_color(distance[i] / maximumDistance);
-                        colors[3*i] = color.r;
-                        colors[3*i + 1] = color.g;
-                        colors[3*i + 2] = color.b;
+                        colors[3 * i] = color.r;
+                        colors[3 * i + 1] = color.g;
+                        colors[3 * i + 2] = color.b;
                     }
                 }
                 geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+                updateIsolines(distance);
             }
         }
     }
@@ -267,7 +259,7 @@ function onMouseUp(event) {
 window.addEventListener('mousedown', (event) => {
     startX = event.clientX;
     startY = event.clientY;
-    isDragging=false;
+    isDragging = false;
 })
 
 document.addEventListener("mousemove", (event) => {
@@ -295,3 +287,119 @@ window.addEventListener('resize', () => {
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
 })
+
+function updateIsolines(distance) {
+    if (ISOLINES) {
+        scene.remove(ISOLINES);
+        ISOLINES.geometry.dispose();
+        ISOLINES.material.dispose();
+        ISOLINES = null;
+    }
+    let isolinesGeometry = new THREE.BufferGeometry();
+    let isolinesMaterial = new THREE.LineBasicMaterial({
+        color: 0x000000,
+    });
+
+    ISOLINES = new THREE.LineSegments(isolinesGeometry, isolinesMaterial);
+
+    const maxDistance = distance.reduce((a, b) => Math.max(a, b), -Infinity);
+    let isolinesPositions = [];
+    const M = 20;
+    let distBetweenLines = maxDistance / M;
+    console.log("max distance ", maxDistance, " ; M ", M);
+    console.log("delta ", distBetweenLines);
+
+    let intersectionDict = {};
+    let vertices = MESH.geometry.attributes.position.array;
+    let faces = MESH.geometry.index.array
+    
+    for (let level = 1; level < M; level++) {
+        console.log("Level = ", level, " at ", level * distBetweenLines)
+        for (let f = 0; f < faces.length; f += 3) {
+            let face = faces.slice(f, f + 3);
+            let segment = []
+            let crosses = 0;
+            for (let i = 0; i < 3; i++) {
+                let ii = face[i % 3];
+                let jj = face[(i + 1) % 3];
+                let key = `${Math.min(ii, jj)}-${Math.max(ii, jj)}`;
+                let region1 = Math.floor(distance[ii] / distBetweenLines);
+                let region2 = Math.floor(distance[jj] / distBetweenLines);
+                if (region1 != region2) {
+                    let lambda = (region1 < region2) ?
+                        (level * distBetweenLines - distance[ii]) / (distance[jj] - distance[ii]) :
+                        (level * distBetweenLines - distance[jj]) / (distance[ii] - distance[jj])
+                    if (0 <= lambda && lambda <= 1) {
+                        crosses += 1;
+                        let v1 = vertices.slice(3 * ii, 3 * ii + 3);
+                        let v2 = vertices.slice(3 * jj, 3 * jj + 3);
+                        let x = [
+                            v1[0] * lambda + v2[0] * (1 - lambda),
+                            v1[1] * lambda + v2[1] * (1 - lambda),
+                            v1[2] * lambda + v2[2] * (1 - lambda)
+                        ]
+                        // TODO: Hack, but why is the intersection different each time?
+                        if (intersectionDict[key] !== undefined) {
+                            console.log("DEFINED ALREADY")
+                            x = intersectionDict[key];
+                        }
+                        intersectionDict[key] = x;
+                        segment.push(x)
+                    }
+                }
+            }
+
+            if (segment.length == 2) {
+                isolinesPositions.push(...segment.flat());
+            }
+            // if (crosses > 0) {
+            //     // set this face's color to blue
+            //     let colors = MESH.geometry.attributes.color.array;
+            //     for (let i = 0; i < 3; i++) {
+            //         const vertexIndex = face[i];
+            //         colors[3 * vertexIndex] = faceColor.r;
+            //         colors[3 * vertexIndex + 1] = faceColor.g;
+            //         colors[3 * vertexIndex + 2] = faceColor.b;
+            //     }
+            //     MESH.geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+            //     console.log("*****")
+            // }
+
+        }
+    }
+
+    console.log(isolinesPositions);
+    isolinesGeometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(isolinesPositions), 3))
+    scene.add(ISOLINES);
+    ISOLINES.position.sub(CENTER);
+    console.log("isolines constructed")
+
+
+    //         for (let h of f.adjacentHalfedges()) {
+    //             let v1 = h.vertex;
+    //             let v2 = h.twin.vertex;
+    //             let i = heatMethod.vertexIndex[v1];
+    //             let j = heatMethod.vertexIndex[v2];
+    //             let region1 = Math.floor(phi.get(i, 0) / distBetweenLines);
+    //             let region2 = Math.floor(phi.get(j, 0) / distBetweenLines);
+
+    //             if (region1 !== region2) {
+    //                 let p1 = geometry.positions[v1];
+    //                 let p2 = geometry.positions[v2];
+    //                 let p = p1.plus(p2.minus(p1).times(lambda));
+
+    //                 segment.push(p);
+    //             }
+    //         }
+
+    //         if (segment.length === 2) {
+    //             for (let i = 0; i < 2; i++) {
+    //                 isolinesPositions.push(segment[i].x);
+    //                 isolinesPositions.push(segment[i].y);
+    //                 isolinesPositions.push(segment[i].z);
+    //             }
+    //         }
+    //     }
+
+    //     isolinesMesh.geometry.addAttribute("position", new THREE.BufferAttribute(new Float32Array(isolinesPositions), 3));
+}
