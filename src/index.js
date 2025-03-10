@@ -31,6 +31,7 @@ let A;
 let DIV;
 let GRAD;
 let ISOLINES;
+let isolinesEnabled = true;
 
 document.getElementById('fileSelect').addEventListener('click', () => {
     document.getElementById('fileElem').click();
@@ -68,6 +69,17 @@ document.getElementById('clear-origins').addEventListener('click', () => {
 document.getElementById('upload-mesh').addEventListener('click', () => {
     console.log("Reupload...")
     document.getElementById('fileElem').click();
+});
+
+document.getElementById('toggle-vision').addEventListener('click', () => {
+    isolinesEnabled = !isolinesEnabled;
+    if (ISOLINES) {
+        if (isolinesEnabled) {
+            scene.add(ISOLINES);
+        } else {
+            scene.remove(ISOLINES);
+        }
+    }
 });
 
 const scene = new THREE.Scene();
@@ -371,6 +383,9 @@ function updateIsolines(distance) {
     console.log(isolinesPositions);
     isolinesGeometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(isolinesPositions), 3))
     scene.add(ISOLINES);
+    if (!isolinesEnabled) {
+        scene.remove(ISOLINES);
+    }
     ISOLINES.position.sub(CENTER);
     console.log("isolines constructed")
 
